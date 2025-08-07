@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>고객 컴플레인 접수</title>
+    <script src="https://cdn.emailjs.com/dist/email.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            padding: 40px;
+            max-width: 600px;
+            width: 100%;
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+            font-size: 28px;
+        }
+
+        .form-group {
+            margin-bottom: 25px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #555;
+            font-weight: 600;
+        }
+
+        input[type="text"], textarea {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #e1e5e9;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+
+        input[type="text"]:focus, textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 120px;
+        }
+
+        .file-upload {
+            position: relative;
+            display: inline-block;
+            width: 100%;
+        }
+
+        .file-input {
+            position: absolute;
+            opacity: 0;
+            width: 100%;
+            height: 100%;
+            cursor: pointer;
+        }
+
+        .file-label {
+            display: block;
+            padding: 12px 15px;
+            border: 2px dashed #e1e5e9;
+            border-radius: 8px;
+            text-align: center;
+            color: #666;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .file-label:hover {
+            border-color: #667eea;
+            background-color: #f8f9ff;
+        }
+
+        .file-preview {
+            margin-top: 10px;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 5px;
+            display: none;
+        }
+
+        .submit-btn {
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 18px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.3s;
+        }
+
+        .submit-btn:hover {
+            transform: translateY(-2px);
+        }
+
+        .submit-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            margin-top: 20px;
+        }
+
+        .success {
+            display: none;
+            text-align: center;
+            color: #28a745;
+            margin-top: 20px;
+            font-weight: 600;
+        }
+
+        .error {
+            display: none;
+            text-align: center;
+            color: #dc3545;
+            margin-top: 20px;
+            font-weight: 600;
+        }
+
+        @media (max-width: 480px) {
+            .container {
+                padding: 20px;
+            }
+            
+            h1 {
+                font-size: 24px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>고객 컴플레인 접수</h1>
+        
+        <form id="complaintForm">
+            <div class="form-group">
+                <label for="customerName">고객명 *</label>
+                <input type="text" id="customerName" name="customerName" required>
+            </div>
+
+            <div class="form-group">
+                <label for="complaintContent">컴플레인 내용 *</label>
+                <textarea id="complaintContent" name="complaintContent" placeholder="불편사항이나 개선 요청사항을 자세히 작성해 주세요." required></textarea>
+            </div>
+
+            <div class="form-group">
+                <label for="attachment">첨부파일 (선택사항)</label>
+                <div class="file-upload">
+                    <input type="file" id="attachment" name="attachment" class="file-input" accept="image/*,.pdf,.doc,.docx">
+                    <label for="attachment" class="file-label">
+                        📎 파일을 선택하거나 여기에 드래그하세요
+                    </label>
+                </div>
+                <div id="filePreview" class="file-preview"></div>
+            </div>
+
+            <button type="submit" class="submit-btn" id="submitBtn">
+                접수 완료
+            </button>
+        </form>
+
+        <div class="loading" id="loading">
+            처리 중입니다...
+        </div>
+
+        <div class="success" id="success">
+            ✅ 컴플레인이 성공적으로 접수되었습니다!
+        </div>
+
+        <div class="error" id="error">
+            ❌ 전송 중 오류가 발생했습니다. 다시 시도해 주세요.
+        </div>
+    </div>
+
+    <script>
+        // EmailJS 초기화 (YOUR_PUBLIC_KEY를 실제 키로 변경)
+        emailjs.init("YOUR_PUBLIC_KEY");
+
+        const form = document.getElementById('complaintForm');
+        const fileInput = document.getElementById('attachment');
+        const filePreview = document.getElementById('filePreview');
+        const submitBtn = document.getElementById('submitBtn');
+        const loading = document.getElementById('loading');
+        const success = document.getElementById('success');
+        const error = document.getElementById('error');
+
+        // 파일 선택 시 미리보기
+        fileInput.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                filePreview.style.display = 'block';
+                filePreview.innerHTML = `
+                    <strong>선택된 파일:</strong> ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)
+                `;
+            } else {
+                filePreview.style.display = 'none';
+            }
+        });
+
+        // 드래그 앤 드롭 처리
+        const fileLabel = document.querySelector('.file-label');
+        
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            fileLabel.addEventListener(eventName, preventDefaults, false);
+        });
+
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        ['dragenter', 'dragover'].forEach(eventName => {
+            fileLabel.addEventListener(eventName, highlight, false);
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            fileLabel.addEventListener(eventName, unhighlight, false);
+        });
+
+        function highlight() {
+            fileLabel.style.borderColor = '#667eea';
+            fileLabel.style.backgroundColor = '#f8f9ff';
+        }
+
+        function unhighlight() {
+            fileLabel.style.borderColor = '#e1e5e9';
+            fileLabel.style.backgroundColor = 'transparent';
+        }
+
+        fileLabel.addEventListener('drop', handleDrop, false);
+
+        function handleDrop(e) {
+            const dt = e.dataTransfer;
+            const files = dt.files;
+            fileInput.files = files;
+            
+            const event = new Event('change', { bubbles: true });
+            fileInput.dispatchEvent(event);
+        }
+
+        // 폼 제출 처리
+        form.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            // UI 상태 변경
+            submitBtn.disabled = true;
+            loading.style.display = 'block';
+            success.style.display = 'none';
+            error.style.display = 'none';
+
+            try {
+                const formData = new FormData(form);
+                const file = fileInput.files[0];
+                
+                // 첨부파일을 Base64로 변환
+                let attachmentData = '';
+                if (file) {
+                    attachmentData = await fileToBase64(file);
+                }
+
+                // EmailJS로 이메일 전송
+                const templateParams = {
+                    customer_name: formData.get('customerName'),
+                    complaint_content: formData.get('complaintContent'),
+                    attachment_name: file ? file.name : '없음',
+                    attachment_data: attachmentData,
+                    date: new Date().toLocaleString('ko-KR'),
+                    to_email: 'lth_1999@naver.com'
+                };
+
+                await emailjs.send('YOUR_SERVICE_ID', 'YOUR_TEMPLATE_ID', templateParams);
+                
+                // 성공 처리
+                success.style.display = 'block';
+                form.reset();
+                filePreview.style.display = 'none';
+                
+            } catch (err) {
+                console.error('Error:', err);
+                error.style.display = 'block';
+            } finally {
+                loading.style.display = 'none';
+                submitBtn.disabled = false;
+            }
+        });
+
+        // 파일을 Base64로 변환하는 함수
+        function fileToBase64(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.readAsDataURL(file);
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = error => reject(error);
+            });
+        }
+    </script>
+</body>
+</html>
